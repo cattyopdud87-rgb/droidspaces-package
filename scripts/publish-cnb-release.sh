@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ -z "${CNB_REPO:-}" || -z "${CNB_TOKEN:-}" ]]; then
+    echo "未配置 CNB_REPO 或 CNB_TOKEN，跳过 CNB 镜像发布。"
+    exit 0
+fi
+
 readonly CNB_API_URL="${CNB_API_URL:-https://api.cnb.cool}"
 readonly RELEASE_TAG="${1:?用法: publish-cnb-release.sh RELEASE_TAG}"
 readonly GITHUB_RELEASE_REPOSITORY="${GITHUB_REPOSITORY:?缺少 GITHUB_REPOSITORY}"
-readonly CNB_RELEASE_REPOSITORY="${CNB_REPO:?缺少 CNB_REPO}"
+readonly CNB_RELEASE_REPOSITORY="${CNB_REPO}"
 
-: "${CNB_TOKEN:?缺少 CNB_TOKEN}"
 : "${GH_TOKEN:?缺少 GH_TOKEN}"
 
 for command_name in curl gh jq stat; do
