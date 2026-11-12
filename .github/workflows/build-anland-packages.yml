@@ -282,8 +282,8 @@ jobs:
       - name: 将请求的源解析为单个提交并检查构建配方
         id: resolve
         env:
-          ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/Goldzxcbug/anland.git' }}
-          ANLAND_REF: ${{ inputs.anland_ref || 'Gold' }}
+          ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/cattyopdud87-rgb/anland.git' }}
+          ANLAND_REF: ${{ inputs.anland_ref || 'legacy' }}
           BUILD_TARGETS: ${{ steps.target.outputs.targets }}
         shell: bash
         run: |
@@ -336,7 +336,7 @@ jobs:
         target: ${{ fromJson(needs.prepare-niri.outputs.targets) }}
     env:
       COMPOSITOR: niri
-      ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/Goldzxcbug/anland.git' }}
+      ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/cattyopdud87-rgb/anland.git' }}
       ANLAND_COMMIT: ${{ needs.prepare-niri.outputs.anland_commit }}
       BUILD_TARGET: ${{ matrix.target }}
       OUTPUT_DIR: .niri-package-build/${{ matrix.target }}
@@ -654,8 +654,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           COMPOSITOR: niri
-          ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/Goldzxcbug/anland.git' }}
-          ANLAND_REF: ${{ inputs.anland_ref || 'Gold' }}
+          ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/cattyopdud87-rgb/anland.git' }}
+          ANLAND_REF: ${{ inputs.anland_ref || 'legacy' }}
           ANLAND_COMMIT: ${{ needs.prepare-niri.outputs.anland_commit }}
           BUILD_TARGET_INPUT: ${{ inputs.niri_target || 'all' }}
           RELEASE_DIR: ${{ github.workspace }}/release-assets
@@ -973,8 +973,8 @@ jobs:
       - name: 将请求的源解析为单个提交并检查构建配方
         id: resolve
         env:
-          ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/Goldzxcbug/anland.git' }}
-          ANLAND_REF: ${{ inputs.anland_ref || 'Gold' }}
+          ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/cattyopdud87-rgb/anland.git' }}
+          ANLAND_REF: ${{ inputs.anland_ref || 'legacy' }}
           BUILD_TARGETS: ${{ steps.targets.outputs.targets }}
         shell: bash
         run: |
@@ -1022,7 +1022,7 @@ jobs:
     env:
       COMPOSITOR: hyprland
       BUILD_TARGET: ${{ matrix.target }}
-      ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/Goldzxcbug/anland.git' }}
+      ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/cattyopdud87-rgb/anland.git' }}
       ANLAND_COMMIT: ${{ needs.prepare-hyprland.outputs.anland_commit }}
       OUTPUT_DIR: .compositor-package-build/hyprland/${{ matrix.target }}
     steps:
@@ -1306,8 +1306,8 @@ jobs:
     env:
       COMPOSITOR: hyprland
       BUILD_TARGET_INPUT: ${{ inputs.hyprland_target || 'all' }}
-      ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/Goldzxcbug/anland.git' }}
-      ANLAND_REF: ${{ inputs.anland_ref || 'Gold' }}
+      ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/cattyopdud87-rgb/anland.git' }}
+      ANLAND_REF: ${{ inputs.anland_ref || 'legacy' }}
       ANLAND_COMMIT: ${{ needs.prepare-hyprland.outputs.anland_commit }}
       RELEASE_DIR: ${{ github.workspace }}/release-assets
       GH_TOKEN: ${{ github.token }}
@@ -1646,8 +1646,8 @@ jobs:
       - name: 将请求的源解析为单个提交并检查构建配方
         id: resolve
         env:
-          ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/Goldzxcbug/anland.git' }}
-          ANLAND_REF: ${{ inputs.anland_ref || 'Gold' }}
+          ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/cattyopdud87-rgb/anland.git' }}
+          ANLAND_REF: ${{ inputs.anland_ref || 'legacy' }}
           BUILD_TARGETS: ${{ steps.targets.outputs.targets }}
         shell: bash
         run: |
@@ -1695,7 +1695,7 @@ jobs:
     env:
       COMPOSITOR: mango
       BUILD_TARGET: ${{ matrix.target }}
-      ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/Goldzxcbug/anland.git' }}
+      ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/cattyopdud87-rgb/anland.git' }}
       ANLAND_COMMIT: ${{ needs.prepare-mango.outputs.anland_commit }}
       OUTPUT_DIR: .compositor-package-build/mango/${{ matrix.target }}
     steps:
@@ -1979,8 +1979,8 @@ jobs:
     env:
       COMPOSITOR: mango
       BUILD_TARGET_INPUT: ${{ inputs.mango_target || 'all' }}
-      ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/Goldzxcbug/anland.git' }}
-      ANLAND_REF: ${{ inputs.anland_ref || 'Gold' }}
+      ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/cattyopdud87-rgb/anland.git' }}
+      ANLAND_REF: ${{ inputs.anland_ref || 'legacy' }}
       ANLAND_COMMIT: ${{ needs.prepare-mango.outputs.anland_commit }}
       RELEASE_DIR: ${{ github.workspace }}/release-assets
       GH_TOKEN: ${{ github.token }}
@@ -2319,8 +2319,8 @@ jobs:
       - name: 将请求的源解析为单个提交并检查构建配方
         id: resolve
         env:
-          ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/Goldzxcbug/anland.git' }}
-          ANLAND_REF: ${{ inputs.anland_ref || 'Gold' }}
+          ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/cattyopdud87-rgb/anland.git' }}
+          ANLAND_REF: ${{ inputs.anland_ref || 'legacy' }}
           BUILD_TARGETS: ${{ steps.targets.outputs.targets }}
         shell: bash
         run: |
@@ -2368,7 +2368,7 @@ jobs:
     env:
       COMPOSITOR: denial
       BUILD_TARGET: ${{ matrix.target }}
-      ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/Goldzxcbug/anland.git' }}
+      ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/cattyopdud87-rgb/anland.git' }}
       ANLAND_COMMIT: ${{ needs.prepare-denial.outputs.anland_commit }}
       OUTPUT_DIR: .compositor-package-build/denial/${{ matrix.target }}
     steps:
@@ -2652,8 +2652,8 @@ jobs:
     env:
       COMPOSITOR: denial
       BUILD_TARGET_INPUT: ${{ inputs.denial_target || 'all' }}
-      ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/Goldzxcbug/anland.git' }}
-      ANLAND_REF: ${{ inputs.anland_ref || 'Gold' }}
+      ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/cattyopdud87-rgb/anland.git' }}
+      ANLAND_REF: ${{ inputs.anland_ref || 'legacy' }}
       ANLAND_COMMIT: ${{ needs.prepare-denial.outputs.anland_commit }}
       RELEASE_DIR: ${{ github.workspace }}/release-assets
       GH_TOKEN: ${{ github.token }}
@@ -3001,8 +3001,8 @@ jobs:
       - name: 将请求的源解析为单个提交
         id: resolve
         env:
-          ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/Goldzxcbug/anland.git' }}
-          ANLAND_REF: ${{ inputs.anland_ref || 'Gold' }}
+          ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/cattyopdud87-rgb/anland.git' }}
+          ANLAND_REF: ${{ inputs.anland_ref || 'legacy' }}
           SELECTED_TARGETS: ${{ steps.targets.outputs.targets }}
         shell: bash
         run: |
@@ -3041,7 +3041,7 @@ jobs:
         target: ${{ fromJson(needs.prepare-kde.outputs.targets) }}
 
     env:
-      ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/Goldzxcbug/anland.git' }}
+      ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/cattyopdud87-rgb/anland.git' }}
       ANLAND_COMMIT: ${{ needs.prepare-kde.outputs.anland_commit }}
       BUILD_TARGET: ${{ matrix.target }}
 
@@ -3406,8 +3406,8 @@ jobs:
       - name: 创建固定发布与软件包清单
         env:
           GH_TOKEN: ${{ github.token }}
-          ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/Goldzxcbug/anland.git' }}
-          ANLAND_REF: ${{ inputs.anland_ref || 'Gold' }}
+          ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/cattyopdud87-rgb/anland.git' }}
+          ANLAND_REF: ${{ inputs.anland_ref || 'legacy' }}
           ANLAND_COMMIT: ${{ needs.prepare-kde.outputs.anland_commit }}
           BUILD_TARGET_INPUT: ${{ inputs.kde_target || 'all' }}
         shell: bash
@@ -3972,8 +3972,8 @@ jobs:
       - name: 将请求的源解析为单个提交
         id: resolve
         env:
-          ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/Goldzxcbug/anland.git' }}
-          ANLAND_REF: ${{ inputs.anland_ref || 'Gold' }}
+          ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/cattyopdud87-rgb/anland.git' }}
+          ANLAND_REF: ${{ inputs.anland_ref || 'legacy' }}
           SELECTED_TARGETS: ${{ steps.targets.outputs.targets }}
         shell: bash
         run: |
@@ -4012,7 +4012,7 @@ jobs:
         target: ${{ fromJson(needs.prepare-gnome.outputs.targets) }}
 
     env:
-      ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/Goldzxcbug/anland.git' }}
+      ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/cattyopdud87-rgb/anland.git' }}
       ANLAND_COMMIT: ${{ needs.prepare-gnome.outputs.anland_commit }}
       BUILD_TARGET: ${{ matrix.target }}
 
@@ -4340,8 +4340,8 @@ jobs:
       - name: 创建固定发布与软件包清单
         env:
           GH_TOKEN: ${{ github.token }}
-          ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/Goldzxcbug/anland.git' }}
-          ANLAND_REF: ${{ inputs.anland_ref || 'Gold' }}
+          ANLAND_REPO: ${{ inputs.anland_repo || 'https://github.com/cattyopdud87-rgb/anland.git' }}
+          ANLAND_REF: ${{ inputs.anland_ref || 'legacy' }}
           ANLAND_COMMIT: ${{ needs.prepare-gnome.outputs.anland_commit }}
           BUILD_TARGET_INPUT: ${{ inputs.gnome_target || 'all' }}
         shell: bash

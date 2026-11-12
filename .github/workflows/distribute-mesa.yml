@@ -9,6 +9,11 @@ run-name: 分发 Mesa ${{ inputs.upstream_tag || '最新正式 Release' }}
 on:
   workflow_dispatch:
     inputs:
+      mesa_repo:
+        description: Mesa 资产来源仓库 (默认 cattyopdud87-rgb/mesa-for-android-container)
+        required: false
+        type: string
+        default: 'cattyopdud87-rgb/mesa-for-android-container'
       upstream_tag:
         description: 可选的上游 mesa-* 正式 Release tag；留空自动选择最新正式 Release；同一版本号只取最新构建
         required: false
@@ -28,9 +33,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  UPSTREAM_REPOSITORY: lfdevs/mesa-for-android-container
-  UPSTREAM_URL: https://github.com/lfdevs/mesa-for-android-container
-  UPSTREAM_RELEASES_URL: https://github.com/lfdevs/mesa-for-android-container/releases
+  UPSTREAM_REPOSITORY: ${{ inputs.mesa_repo || 'cattyopdud87-rgb/mesa-for-android-container' }}
+  UPSTREAM_URL: https://github.com/${{ inputs.mesa_repo || 'cattyopdud87-rgb/mesa-for-android-container' }}
+  UPSTREAM_RELEASES_URL: https://github.com/${{ inputs.mesa_repo || 'cattyopdud87-rgb/mesa-for-android-container' }}/releases
   MEDIA_REPOSITORY: Yizhou147/droidspaces-media-decode
   MEDIA_URL: https://github.com/Yizhou147/droidspaces-media-decode
   DISTRIBUTION_TAG: mesa-for-android-container
