@@ -183,6 +183,15 @@ init_colors() {
     fi
 }
 
+load_gpu_helper() {
+    local helper="$GPU_HELPER_INSTALLED"
+    [[ ! -f "$GPU_HELPER_LOCAL" ]] || helper="$GPU_HELPER_LOCAL"
+    if [[ -f "$helper" && -r "$helper" ]]; then
+        # shellcheck disable=SC1090
+        source "$helper" 2>/dev/null || true
+    fi
+}
+
 detect_system() {
     if [[ -r /etc/os-release ]]; then
         local ID="" VERSION_ID="" PRETTY_NAME=""
@@ -193,6 +202,7 @@ detect_system() {
         SYSTEM_LABEL="${PRETTY_NAME:-${ID:-Unknown Linux}${VERSION_ID:+ $VERSION_ID}}"
     fi
     ARCHITECTURE="$(uname -m 2>/dev/null || printf 'unknown')"
+    load_gpu_helper
 }
 
 set_desktop_component() {
@@ -586,45 +596,70 @@ stored_component_version() {
     printf '%s' "$version"
 }
 
-installed_package_version() {
-    local package output version
+declare -A CACHED_PACKAGE_VERSIONS=()
+PACKAGE_CACHE_INITIALIZED=false
+
+invalidate_package_cache() {
+    PACKAGE_CACHE_INITIALIZED=false
+    CACHED_PACKAGE_VERSIONS=()
+}
+
+populate_package_cache() {
+    [[ "$PACKAGE_CACHE_INITIALIZED" == false ]] || return 0
+    CACHED_PACKAGE_VERSIONS=()
+    local -a all_packages=(
+        mesa-vulkan-drivers libglx-mesa0 libegl-mesa0 mesa-dri-drivers mesa
+        hangover-wine
+        kwin-wayland kwin-x11 kwin-common kwin
+        niri-anland
+        hyprland-anland hyprland
+        mango-anland
+        denial
+        mutter-common mutter
+        anland-session
+    )
+    local package_name package_version package_status
     case "$SYSTEM_ID" in
         debian|ubuntu)
-            command -v dpkg-query >/dev/null 2>&1 || return 1
-            for package in "$@"; do
-                output="$(dpkg-query -W -f='${db:Status-Abbrev}\t${Version}\n' \
-                    "$package" 2>/dev/null)" || continue
-                if [[ "$output" == ?i$' '*$'\t'* ]]; then
-                    version="${output#*$'\t'}"
-                    version="${version%%$'\n'*}"
-                    valid_component_version "$version" || continue
-                    printf '%s' "$version"
-                    return 0
-                fi
-            done
+            if command -v dpkg-query >/dev/null 2>&1; then
+                while IFS=$'\t' read -r package_name package_status package_version; do
+                    if [[ "$package_status" == ?i$' '* && -n "$package_version" ]]; then
+                        valid_component_version "$package_version" && CACHED_PACKAGE_VERSIONS["$package_name"]="$package_version"
+                    fi
+                done < <(dpkg-query -W -f='${Package}\t${db:Status-Abbrev}\t${Version}\n' "${all_packages[@]}" 2>/dev/null || true)
+            fi
             ;;
         fedora)
-            command -v rpm >/dev/null 2>&1 || return 1
-            for package in "$@"; do
-                version="$(rpm -q --queryformat '%{VERSION}-%{RELEASE}\n' \
-                    "$package" 2>/dev/null)" || continue
-                version="${version%%$'\n'*}"
-                valid_component_version "$version" || continue
-                printf '%s' "$version"
-                return 0
-            done
+            if command -v rpm >/dev/null 2>&1; then
+                while IFS=$'\t' read -r package_name package_version; do
+                    if [[ -n "$package_name" && -n "$package_version" && "$package_version" != "(none)" ]]; then
+                        valid_component_version "$package_version" && CACHED_PACKAGE_VERSIONS["$package_name"]="$package_version"
+                    fi
+                done < <(rpm -q --queryformat '%{NAME}\t%{VERSION}-%{RELEASE}\n' "${all_packages[@]}" 2>/dev/null || true)
+            fi
             ;;
         arch|archarm|archlinux)
-            command -v pacman >/dev/null 2>&1 || return 1
-            for package in "$@"; do
-                output="$(pacman -Q "$package" 2>/dev/null)" || continue
-                version="${output#* }"
-                valid_component_version "$version" || continue
-                printf '%s' "$version"
-                return 0
-            done
+            if command -v pacman >/dev/null 2>&1; then
+                while IFS=' ' read -r package_name package_version; do
+                    if [[ -n "$package_name" && -n "$package_version" ]]; then
+                        valid_component_version "$package_version" && CACHED_PACKAGE_VERSIONS["$package_name"]="$package_version"
+                    fi
+                done < <(pacman -Q "${all_packages[@]}" 2>/dev/null || true)
+            fi
             ;;
     esac
+    PACKAGE_CACHE_INITIALIZED=true
+}
+
+installed_package_version() {
+    local package
+    populate_package_cache
+    for package in "$@"; do
+        if [[ -n "${CACHED_PACKAGE_VERSIONS[$package]:-}" ]]; then
+            printf '%s' "${CACHED_PACKAGE_VERSIONS[$package]}"
+            return 0
+        fi
+    done
     return 1
 }
 
@@ -1386,7 +1421,9 @@ gpu_helper() {
 
 gpu_status_display() {
     local scope="$1" api="$2" value
-    if ! value="$(gpu_helper --status "$scope" "$api" 2>/dev/null)"; then
+    if declare -F gpu_status >/dev/null 2>&1; then
+        value="$(gpu_status "$scope" "$api" 2>/dev/null || true)"
+    elif ! value="$(gpu_helper --status "$scope" "$api" 2>/dev/null)"; then
         printf '%s' "$(msg '未知' 'unknown')"
         return
     fi
@@ -2136,6 +2173,93 @@ manage_updates() {
     done
 }
 
+hardware_tuning_menu() {
+    local choice mem_total mem_avail swap_total swap_free
+    while :; do
+        clear_screen
+        draw_header
+        printf '\n%b%s%b\n\n' "$COLOR_BOLD" "$(msg '硬件与容器资源优化' 'Hardware & Container Resource Optimization')" "$COLOR_RESET"
+
+        mem_total="$(awk '/MemTotal/{printf "%.1f GB", $2/1024/1024}' /proc/meminfo 2>/dev/null || printf 'N/A')"
+        mem_avail="$(awk '/MemAvailable/{printf "%.1f GB", $2/1024/1024}' /proc/meminfo 2>/dev/null || printf 'N/A')"
+        swap_total="$(awk '/SwapTotal/{printf "%.1f GB", $2/1024/1024}' /proc/meminfo 2>/dev/null || printf 'N/A')"
+        swap_free="$(awk '/SwapFree/{printf "%.1f GB", $2/1024/1024}' /proc/meminfo 2>/dev/null || printf 'N/A')"
+
+        printf '  %s: %s (%s: %s)\n' "$(msg '物理内存' 'Physical RAM')" "$mem_total" "$(msg '当前可用' 'Available')" "$mem_avail"
+        printf '  %s: %s (%s: %s)\n' "$(msg 'ZRAM 交换分区' 'ZRAM Swap')" "$swap_total" "$(msg '当前空闲' 'Free')" "$swap_free"
+
+        if [[ -r /sys/class/power_supply/battery/temp ]]; then
+            printf '  %s: %s°C (%s%%)\n' "$(msg '电池温度' 'Battery Temp')" \
+                "$(awk '{printf "%.1f", $1/10}' /sys/class/power_supply/battery/temp 2>/dev/null || printf 'N/A')" \
+                "$(cat /sys/class/power_supply/battery/capacity 2>/dev/null || printf 'N/A')"
+        fi
+
+        printf '  %s: %b%s%b\n\n' "$(msg '当前 OpenGL 驱动' 'OpenGL Driver')" "$COLOR_GREEN" "$(gpu_status_display current opengl)" "$COLOR_RESET"
+
+        printf '  %b[1]%b %s\n' "$COLOR_CYAN" "$COLOR_RESET" \
+            "$(msg '内存回收与缓存压缩 (sync + drop_caches)' 'Trim memory & compact caches (sync + drop_caches)')"
+        printf '  %b[2]%b %s\n' "$COLOR_CYAN" "$COLOR_RESET" \
+            "$(msg '精简容器后台服务 (禁用冲突的 networkd/udevd/ksplash)' 'Streamline container services (mask conflicting units)')"
+        printf '  %b[3]%b %s\n' "$COLOR_CYAN" "$COLOR_RESET" \
+            "$(msg '应用高通 Adreno 618 硬件加速与低延迟合成' 'Apply Qualcomm Adreno 618 acceleration profile')"
+        printf '  %b[4]%b %s\n' "$COLOR_CYAN" "$COLOR_RESET" \
+            "$(msg '回收存储空间 (fstrim -v /)' 'Reclaim storage space (fstrim -v /)')"
+        printf '  %b[5]%b %s\n' "$COLOR_CYAN" "$COLOR_RESET" \
+            "$(msg '运行图形栈完整性诊断与验证' 'Run graphics stack diagnostic & verification')"
+        printf '  %b[0]%b %s\n\n' "$COLOR_CYAN" "$COLOR_RESET" "$(msg '返回' 'Back')"
+
+        printf '%s: ' "$(msg '请选择' 'Select')"
+        IFS= read -r choice || return
+        case "${choice,,}" in
+            1)
+                printf '\n%s\n' "$(msg '正在执行内存整理与页面缓存压缩...' 'Reclaiming memory and compacting caches...')"
+                sync || true
+                if ((EUID == 0)); then
+                    echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
+                elif command -v sudo >/dev/null 2>&1; then
+                    sudo sh -c 'sync; echo 3 > /proc/sys/vm/drop_caches' 2>/dev/null || true
+                fi
+                printf '%b%s%b\n' "$COLOR_GREEN" "$(msg '内存回收完成。' 'Memory reclamation complete.')" "$COLOR_RESET"
+                pause_menu
+                ;;
+            2)
+                printf '\n%s\n' "$(msg '正在精简容器冲突与冗余服务...' 'Streamlining conflicting and redundant container services...')"
+                if command -v systemctl >/dev/null 2>&1; then
+                    if ((EUID == 0)); then
+                        systemctl mask systemd-networkd.service systemd-udevd.service 2>/dev/null || true
+                        systemctl stop systemd-networkd.service systemd-udevd.service 2>/dev/null || true
+                    elif command -v sudo >/dev/null 2>&1; then
+                        sudo systemctl mask systemd-networkd.service systemd-udevd.service 2>/dev/null || true
+                        sudo systemctl stop systemd-networkd.service systemd-udevd.service 2>/dev/null || true
+                    fi
+                    systemctl --user mask plasma-ksplash.service 2>/dev/null || true
+                    printf '%b%s%b\n' "$COLOR_GREEN" "$(msg '容器后台服务精简已应用。' 'Container services streamlined.')" "$COLOR_RESET"
+                else
+                    printf '%b%s%b\n' "$COLOR_YELLOW" "$(msg '当前环境非 systemd，跳过服务精简。' 'Not a systemd environment; skipped.')" "$COLOR_RESET"
+                fi
+                pause_menu
+                ;;
+            3)
+                printf '\n%s\n' "$(msg '正在应用高通 Adreno 618 最佳配置 (FD_FORCE_KGSL=1, KWIN_COMPOSE=O2ES)...' 'Applying Qualcomm Adreno 618 profile...')"
+                gpu_helper --set opengl kgsl >/dev/null 2>&1 || true
+                printf '%b%s%b\n' "$COLOR_GREEN" "$(msg '高通硬件加速配置已写入 /etc/environment。' 'Qualcomm HW profile written to /etc/environment.')" "$COLOR_RESET"
+                pause_menu
+                ;;
+            4)
+                reclaim_sparse_storage
+                ;;
+            5)
+                clear_screen
+                draw_header
+                printf '\n'
+                gpu_helper --verify || true
+                pause_menu
+                ;;
+            0|q) return ;;
+        esac
+    done
+}
+
 show_about() {
     clear_screen
     draw_header
@@ -2177,6 +2301,8 @@ main_menu() {
             printf '\n'
             printf '  %b[S]%b %s\n' "$COLOR_CYAN" "$COLOR_RESET" "$(msg '软件源设置' 'Source settings')"
             printf '  %b[C]%b %s\n' "$COLOR_CYAN" "$COLOR_RESET" "$(msg '清理下载缓存' 'Clean download cache')"
+            printf '  %b[P]%b %s\n' "$COLOR_CYAN" "$COLOR_RESET" \
+                "$(msg '硬件与容器资源优化' 'Hardware & container optimization')"
             printf '  %b[R]%b %s\n' "$COLOR_CYAN" "$COLOR_RESET" \
                 "$(msg '回收存储空间（稀疏镜像）' 'Reclaim storage (sparse image)')"
             printf '  %b[U]%b %s\n' "$COLOR_CYAN" "$COLOR_RESET" "$(msg '检查与安装更新' 'Check for and install updates')"
@@ -2194,7 +2320,7 @@ main_menu() {
         choice="$MENU_CHOICE"
         [[ -n "$choice" ]] || continue
         case "${choice,,}" in
-            0|1|2|3|4|q|s|c|r|u|a) restore_dynamic_menu_echo ;;
+            0|1|2|3|4|q|s|c|p|r|u|a) restore_dynamic_menu_echo ;;
             *) continue ;;
         esac
         case "${choice,,}" in
@@ -2210,6 +2336,7 @@ main_menu() {
                 ;;
             s) source_settings_menu ;;
             c) manage_cache ;;
+            p) hardware_tuning_menu ;;
             r) reclaim_sparse_storage ;;
             u) manage_updates ;;
             a) show_about ;;
@@ -2217,6 +2344,7 @@ main_menu() {
         esac
         if [[ "$COMPONENT_REFRESH_REQUIRED" == true ]]; then
             COMPONENT_REFRESH_REQUIRED=false
+            invalidate_package_cache
             detect_desktop_component
             start_component_version_checks
         fi

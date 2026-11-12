@@ -34,7 +34,7 @@ gpu_vk_label() {
 
 gpu_read_saved() {
     local line key value
-    GPU_LOADER='' GPU_GALLIUM='' GPU_SOFTWARE='' GPU_ICD='' GPU_OLD_ICD=''
+    GPU_LOADER='' GPU_GALLIUM='' GPU_SOFTWARE='' GPU_ICD='' GPU_OLD_ICD='' GPU_KGSL='' GPU_KWIN_COMPOSE=''
     [[ ! -e "$GPU_ENV_FILE" || -r "$GPU_ENV_FILE" ]] || return 1
     [[ -r "$GPU_ENV_FILE" ]] || return 0
     while IFS= read -r line || [[ -n "$line" ]]; do
@@ -49,6 +49,8 @@ gpu_read_saved() {
                 LIBGL_ALWAYS_SOFTWARE) GPU_SOFTWARE="$value" ;;
                 VK_DRIVER_FILES) GPU_ICD="$value" ;;
                 VK_ICD_FILENAMES) GPU_OLD_ICD="$value" ;;
+                FD_FORCE_KGSL) GPU_KGSL="$value" ;;
+                KWIN_COMPOSE) GPU_KWIN_COMPOSE="$value" ;;
             esac
         fi
     done < "$GPU_ENV_FILE"
@@ -81,12 +83,26 @@ gpu_driver_file() {
     return 1
 }
 gpu_manifest_matches() {
-    local path="$1" mode="$2" driver
+    local path="$1" mode="$2" driver prefix content
     case "$mode" in turnip) driver=freedreno ;; lavapipe) driver=lvp ;; *) return 1 ;; esac
     [[ "$path" == /* && -f "$path" && -r "$path" ]] || return 1
     # Colon separates paths in Vulkan and the remaining characters cannot be
     # represented safely in /etc/environment without shell-like expansion.
     [[ "$path" != *:* && "$path" != *$'\n'* && "$path" != *$'\r'* && "$path" != *'"'* && "$path" != *'\'* && "$path" != *'$'* && "$path" != *'`'* ]] || return 1
+    prefix="libvulkan_${driver}.so"
+
+    # Fast path: in-memory pure-bash validation without spawning subshells or python3/jq
+    if content="$(<"$path")" 2>/dev/null; then
+        if [[ "$content" =~ \"library_path\"[[:space:]]*:[[:space:]]*\"[^\"]*/${prefix}(\.[^\"]*)?\" ]]; then
+            if [[ "$content" =~ \"library_arch\"[[:space:]]*:[[:space:]]*\"?([^\"[:space:],]+)\"? ]]; then
+                [[ "${BASH_REMATCH[1]}" == "64" ]] && return 0
+                return 1
+            fi
+            return 0
+        fi
+        return 1
+    fi
+
     if command -v python3 >/dev/null 2>&1; then
         python3 - "$path" "$driver" <<'PY'
 import json, os, sys
@@ -192,7 +208,7 @@ gpu_save() {
         chmod 0644 "$temporary" || { rm -f -- "$temporary"; return 1; }
     fi
     if [[ "$api" == opengl ]]; then
-        pattern='MESA_LOADER_DRIVER_OVERRIDE|GALLIUM_DRIVER|LIBGL_ALWAYS_SOFTWARE'
+        pattern='MESA_LOADER_DRIVER_OVERRIDE|GALLIUM_DRIVER|LIBGL_ALWAYS_SOFTWARE|FD_FORCE_KGSL|KWIN_COMPOSE'
     else
         pattern='VK_DRIVER_FILES|VK_ICD_FILENAMES'
     fi
@@ -204,7 +220,8 @@ gpu_save() {
     fi
     if ! {
         case "$api:$mode" in
-            opengl:kgsl|opengl:zink) printf 'MESA_LOADER_DRIVER_OVERRIDE=%s\nGALLIUM_DRIVER=%s\n' "$mode" "$mode" ;;
+            opengl:kgsl) printf 'MESA_LOADER_DRIVER_OVERRIDE=kgsl\nGALLIUM_DRIVER=kgsl\nFD_FORCE_KGSL=1\nKWIN_COMPOSE=O2ES\n' ;;
+            opengl:zink) printf 'MESA_LOADER_DRIVER_OVERRIDE=zink\nGALLIUM_DRIVER=zink\n' ;;
             opengl:llvmpipe|opengl:softpipe) printf 'LIBGL_ALWAYS_SOFTWARE=true\nGALLIUM_DRIVER=%s\n' "$mode" ;;
             vulkan:auto) : ;;
             vulkan:*) printf 'VK_DRIVER_FILES="%s"\n' "$icd" ;;
@@ -271,6 +288,72 @@ gpu_menu() {
     done
 }
 
+gpu_verify_stack() {
+    local errors=0
+    printf '%s\n' "$(gpu_msg '=== Droidspaces GPU 驱动诊断与验证 ===' '=== Droidspaces GPU Driver Verification ===')"
+    
+    # Check DRI driver files
+    if gpu_driver_file kgsl_dri.so; then
+        printf '  [+] OpenGL (Freedreno KGSL): %s\n' "$(gpu_msg '驱动库就绪' 'Driver library present')"
+    else
+        printf '  [-] OpenGL (Freedreno KGSL): %s\n' "$(gpu_msg '缺少 kgsl_dri.so' 'kgsl_dri.so missing')"
+        ((errors += 1))
+    fi
+
+    # Check Vulkan Turnip manifest
+    gpu_find_manifests turnip
+    if ((${#GPU_MANIFESTS[@]} > 0)); then
+        printf '  [+] Vulkan (Turnip): %s (%s)\n' "$(gpu_msg '清单就绪' 'Manifest ready')" "${GPU_MANIFESTS[0]}"
+    else
+        printf '  [-] Vulkan (Turnip): %s\n' "$(gpu_msg '未找到有效清单' 'No valid manifest found')"
+        ((errors += 1))
+    fi
+
+    # Check Qualcomm KGSL device node
+    if [[ -e /dev/kgsl-3d0 ]]; then
+        if [[ -r /dev/kgsl-3d0 && -w /dev/kgsl-3d0 ]]; then
+            printf '  [+] Hardware Device: /dev/kgsl-3d0 %s\n' "$(gpu_msg '读写正常' 'Read/Write accessible')"
+        else
+            printf '  [!] Hardware Device: /dev/kgsl-3d0 %s\n' "$(gpu_msg '存在但无读写权限' 'Present but permission denied')"
+        fi
+    else
+        printf '  [!] Hardware Device: /dev/kgsl-3d0 %s\n' "$(gpu_msg '不存在（如非高通平台请忽略）' 'Not found (ignore if non-Qualcomm)')"
+    fi
+
+    if ((errors == 0)); then
+        printf '\n%s\n' "$(gpu_msg '图形硬件栈校验通过。' 'Graphics stack verification PASSED.')"
+        return 0
+    fi
+    printf '\n%s\n' "$(gpu_msg '图形硬件栈存在未就绪组件。' 'Graphics stack verification FAILED.')"
+    return 1
+}
+
+gpu_status_json() {
+    gpu_read_saved || true
+    local cur_gl saved_gl cur_vk saved_vk kgsl_dev=false
+    cur_gl="$(gpu_status current opengl 2>/dev/null || printf 'unknown')"
+    saved_gl="$(gpu_status saved opengl 2>/dev/null || printf 'unknown')"
+    cur_vk="$(gpu_status current vulkan 2>/dev/null || printf 'unknown')"
+    saved_vk="$(gpu_status saved vulkan 2>/dev/null || printf 'unknown')"
+    [[ -e /dev/kgsl-3d0 ]] && kgsl_dev=true
+    
+    printf '{\n'
+    printf '  "opengl": {\n'
+    printf '    "current": "%s",\n' "$cur_gl"
+    printf '    "saved": "%s"\n' "$saved_gl"
+    printf '  },\n'
+    printf '  "vulkan": {\n'
+    printf '    "current": "%s",\n' "$cur_vk"
+    printf '    "saved": "%s"\n' "$saved_vk"
+    printf '  },\n'
+    printf '  "hardware": {\n'
+    printf '    "kgsl_device_node": %s,\n' "$kgsl_dev"
+    printf '    "fd_force_kgsl": "%s",\n' "${GPU_KGSL:-0}"
+    printf '    "kwin_compose": "%s"\n' "${GPU_KWIN_COMPOSE:-default}"
+    printf '  }\n'
+    printf '}\n'
+}
+
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     case "${1:-}" in
         --status)
@@ -279,7 +362,11 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
         --set)
             [[ ( $# == 3 || $# == 4 ) && $EUID == 0 ]] || exit 2
             gpu_save "$2" "$3" "${4:-}" ;;
+        --verify)
+            gpu_verify_stack ;;
+        --json)
+            gpu_status_json ;;
         ""|opengl|vulkan) [[ $# -le 1 ]] || exit 2; gpu_menu ;;
-        *) printf '%s\n' 'Usage: droidspaces-gpu | --status current|saved opengl|vulkan | --set opengl|vulkan MODE [ICD_JSON]' >&2; exit 2 ;;
+        *) printf '%s\n' 'Usage: droidspaces-gpu | --status current|saved opengl|vulkan | --set opengl|vulkan MODE [ICD_JSON] | --verify | --json' >&2; exit 2 ;;
     esac
 fi

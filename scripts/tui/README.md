@@ -52,13 +52,17 @@ Zink 使用单独选择的 Vulkan 驱动；每个选项只修改对应的配置�
 脚本保存配置到 `/etc/environment`，并备份到 `/etc/environment.droidspaces-gpu.bak`；
 重启容器后生效。路径由独立脚本 `droidspaces-gpu.sh` 管理，也可运行
 `droidspaces-gpu` 单独打开菜单。驱动文件存在不保证硬件支持。
+`droidspaces-gpu.sh` 还支持非交互式调用：`--verify` 可自动诊断 DRI 驱动库、Vulkan 清单及 `/dev/kgsl-3d0` 访问状态；`--json` 输出包含当前与持久化配置的机器可读 JSON，供外部脚本及工具链集成。
 Vulkan 清单会从常见系统和 XDG 目录查找；有多个候选时可选择，也可输入任意位置的 JSON 绝对路径。
-脚本通过 Python 3 或 jq 检查清单中的驱动库名称和 64 位架构，并将所选清单写入 `VK_DRIVER_FILES`。
+脚本内置纯 Bash 解析器快速检验清单中的驱动库名称和 64 位架构（亦支持 Python 3 或 jq 兼容兜底），并将所选清单写入 `VK_DRIVER_FILES`。
+在选择 Freedreno KGSL 模式时，脚本将自动配置 `FD_FORCE_KGSL=1` 及 KWin OpenGL ES 合成支持 `KWIN_COMPOSE=O2ES`，保证高通 Adreno 平台平滑硬件加速。
 自定义清单和它引用的驱动库还需能被运行图形程序的用户读取和加载。
 
 图形组件选择 CNB 时采用 KDE 的校验方式，从同一 CNB Release 清单读取附件名称和 SHA-256，
 兼容缺少摘要的旧清单；Next session 使用同一 CNB Release 的 `SHA256SUMS`。
 GitHub 直连使用官方附件，代理模式通过 GitHub Release API 交叉核验附件摘要。
+
+“硬件与容器资源优化”提供物理内存、可用内存、ZRAM 交换分区与电池温度监控，并支持一键内存整理与页面缓存压缩 (`sync; drop_caches`)、精简容器内部冲突或超限循环重启的后台服务（如 Android 容器环境中宿主托管的网络和 udev 服务 `systemd-networkd` / `systemd-udevd` 及超时的桌面启动画面 `plasma-ksplash`），并可一键应用高通 Adreno 618 最佳加速配置及执行图形硬件栈自检。
 
 “回收存储空间（稀疏镜像）”用于在正常启动的 `rootfs.img` 容器内回收已经删除文件所占的
 宿主物理空间。TUI 会先确认根文件系统是可写的 Ext4 loop 镜像，经用户确认后以 root 身份
