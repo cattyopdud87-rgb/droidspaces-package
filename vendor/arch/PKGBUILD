@@ -161,11 +161,26 @@ build() {
   CFLAGS+=" -fno-lto"
   CXXFLAGS+=" -fno-lto"
 
+  # ARMv8.2-A Kryo 470 (Cortex-A76 + Cortex-A55) DynamIQ optimizations
+  if [[ "${CARCH:-}" == "aarch64" ]] || [[ "$(uname -m)" == "aarch64" ]]; then
+    CFLAGS+=" -O3 -march=armv8.2-a+dotprod+fp16 -mtune=cortex-a76.cortex-a55 -fno-plt"
+    CXXFLAGS+=" -O3 -march=armv8.2-a+dotprod+fp16 -mtune=cortex-a76.cortex-a55 -fno-plt"
+  fi
+
   local _meson_options=(
     -Dversion-tag="${_meson_version}-arch"
     -Dvcs-tag=false
     -Dshared-lib-tag="${_meson_version}"
     -Dmode=release
+
+    # Kernel 4.14 Android container-lean configuration:
+    # Disable bare-metal daemons unsupported or redundant under Droidspaces container
+    -Duserdb=false
+    -Doomd=false
+    -Dhomed=disabled
+    -Drepart=disabled
+    -Dsysupdate=disabled
+    -Dhibernate=false
 
     -Dapparmor=disabled
     -Dbootloader=enabled
